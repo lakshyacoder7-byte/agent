@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AVEN — Orbiting Star</title>
+<style>
+:root{--bg:#030308;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root{--bg:#030308}}
+html,body{height:100%;margin:0;background:var(--bg)}
+body{display:flex;align-items:center;justify-content:center;overflow:hidden}
+.wrap{position:relative;width:min(94vw,94vh,860px);aspect-ratio:1}
+.wrap img,.wrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.wrap img{border-radius:50%;animation:breathe 6s ease-in-out infinite}
+@keyframes breathe{50%{filter:brightness(1.12) saturate(1.1)}}
+</style></head>
+<body>
+<div class="wrap"><img id="logo" alt="AVEN logo" src="/assets/aven-orbit-logo.png"><canvas id="c"></canvas></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let S=1;
+function fit(){const r=cv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);cv.width=r.width*d;cv.height=r.height*d;S=cv.width/1024}
+fit();addEventListener('resize',fit);
+// closed orbit tracing the ribbon, in 1024-space
+const P=[[905,268],[800,243],[660,258],[560,225],[500,215],[430,285],[360,390],[285,495],[205,600],[130,598],[75,520],[95,430],[190,382],[300,392],[420,462],[530,550],[640,632],[740,662],[840,625],[918,540],[945,420],[942,330]];
+function cr(p0,p1,p2,p3,t){const t2=t*t,t3=t2*t;return[0,1].map(i=>.5*((2*p1[i])+(-p0[i]+p2[i])*t+(2*p0[i]-5*p1[i]+4*p2[i]-p3[i])*t2+(-p0[i]+3*p1[i]-3*p2[i]+p3[i])*t3))}
+const pts=[];const n=P.length;
+for(let i=0;i<n;i++)for(let k=0;k<40;k++)pts.push(cr(P[(i-1+n)%n],P[i],P[(i+1)%n],P[(i+2)%n],k/40));
+const cum=[0];for(let i=1;i<=pts.length;i++){const a=pts[i-1],b=pts[i%pts.length];cum.push(cum[i-1]+Math.hypot(b[0]-a[0],b[1]-a[1]))}
+const L=cum[cum.length-1];
+function at(s){s=((s%L)+L)%L;let lo=0,hi=cum.length-1;while(hi-lo>1){const m=(lo+hi)>>1;cum[m]<=s?lo=m:hi=m}
+ const a=pts[lo],b=pts[(lo+1)%pts.length],f=(s-cum[lo])/((cum[lo+1]-cum[lo])||1);return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]}
+function flare(x,y,r,rot,a){
+ const g=ctx.createRadialGradient(x,y,0,x,y,r*3.2);
+ g.addColorStop(0,`rgba(255,255,255,${a})`);g.addColorStop(.12,`rgba(205,210,255,${.8*a})`);g.addColorStop(.4,`rgba(110,110,230,${.28*a})`);g.addColorStop(1,'rgba(60,60,200,0)');
+ ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r*3.2,0,7);ctx.fill();
+ ctx.save();ctx.translate(x,y);
+ for(const [ang,len,w] of [[rot,r*5,1.6],[rot+Math.PI/2,r*5,1.6],[rot+Math.PI/4,r*2.6,1],[rot-Math.PI/4,r*2.6,1]]){
+  ctx.save();ctx.rotate(ang);
+  const lg=ctx.createLinearGradient(-len,0,len,0);
+  lg.addColorStop(0,'rgba(180,185,255,0)');lg.addColorStop(.5,`rgba(255,255,255,${a})`);lg.addColorStop(1,'rgba(180,185,255,0)');
+  ctx.fillStyle=lg;ctx.beginPath();ctx.moveTo(-len,0);ctx.quadraticCurveTo(0,-w*S*1.2,len,0);ctx.quadraticCurveTo(0,w*S*1.2,-len,0);ctx.fill();ctx.restore()}
+ ctx.restore()}
+const SPEED=210; // px/sec in 1024-space
+let t0=performance.now();
+const tail=[];
+function frame(now){
+ const t=(now-t0)/1000,s=t*SPEED;
+ ctx.clearRect(0,0,cv.width,cv.height);
+ ctx.globalCompositeOperation='lighter';
+ // comet tail
+ const N=70,TL=330;
+ for(let i=N;i>=1;i--){
+  const f=i/N,p=at(s-f*TL),a=Math.pow(1-f,2.2),r=(1-f*.75)*5.5*S;
+  const g=ctx.createRadialGradient(p[0]*S,p[1]*S,0,p[0]*S,p[1]*S,r*3);
+  g.addColorStop(0,`rgba(215,220,255,${.55*a})`);g.addColorStop(.5,`rgba(110,115,235,${.22*a})`);g.addColorStop(1,'rgba(80,80,220,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(p[0]*S,p[1]*S,r*3,0,7);ctx.fill()}
+ // star
+ const h=at(s),tw=.85+.15*Math.sin(t*9);
+ flare(h[0]*S,h[1]*S,7*S*tw,t*.8,1);
+ // origin glint pulse
+ flare(905*S,268*S,3.5*S,0,.35+.25*Math.sin(t*2.2));
+ ctx.globalCompositeOperation='source-over';
+ requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+</script></body></html>
